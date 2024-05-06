@@ -6,9 +6,9 @@ license = "MIT OR Apache-2.0"
 
 [dependencies]
 inindexer = { git = "https://github.com/INTEARnear/inindexer.git", features = [ "fastnear-data-server" ] }
-nft-indexer = { path = "../nft-indexer" }
-potlock-indexer = { path = "../potlock-indexer" }
-trade-indexer = { path = "../trade-indexer" }
+nft-indexer = { git = "https://github.com/INTEARnear/nft-indexer" }
+potlock-indexer = { git = "https://github.com/INTEARnear/potlock-indexer" }
+trade-indexer = { git = "https://github.com/INTEARnear/trade-indexer" }
 tokio = { version = "1.37.0", features = ["macros", "rt-multi-thread"] }
 log = "0.4.21"
 simple_logger = "5.0.0"
