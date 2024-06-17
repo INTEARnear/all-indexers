@@ -1,8 +1,7 @@
-use inindexer::fastnear_data_server::FastNearDataServerProvider;
 use inindexer::multiindexer::{ChainIndexers, MapError};
+use inindexer::neardata_server::NeardataServerProvider;
 use inindexer::{
-    run_indexer, AutoContinue, BlockIterator, IndexerOptions,
-    PreprocessTransactionsSettings,
+    run_indexer, AutoContinue, BlockIterator, IndexerOptions, PreprocessTransactionsSettings,
 };
 use redis::aio::ConnectionManager;
 
@@ -21,14 +20,23 @@ async fn main() {
     .unwrap();
     let connection = ConnectionManager::new(client).await.unwrap();
 
-    let nft_indexer = nft_indexer::NftIndexer(nft_indexer::redis_handler::PushToRedisStream::new(connection.clone(), 10_000));
-    let potlock_indexer = potlock_indexer::PotlockIndexer(potlock_indexer::redis_handler::PushToRedisStream::new(connection.clone(), 10_000));
-    let trade_indexer = trade_indexer::TradeIndexer(trade_indexer::redis_handler::PushToRedisStream::new(connection.clone(), 10_000));
-    let mut indexer = nft_indexer.map_error(anyhow::Error::msg).chain(potlock_indexer).chain(trade_indexer.map_error(anyhow::Error::msg));
+    let nft_indexer = nft_indexer::NftIndexer(
+        nft_indexer::redis_handler::PushToRedisStream::new(connection.clone(), 10_000).await,
+    );
+    let potlock_indexer = potlock_indexer::PotlockIndexer(
+        potlock_indexer::redis_handler::PushToRedisStream::new(connection.clone(), 10_000).await,
+    );
+    let trade_indexer = trade_indexer::TradeIndexer(
+        trade_indexer::redis_handler::PushToRedisStream::new(connection.clone(), 10_000).await,
+    );
+    let mut indexer = nft_indexer
+        .map_error(anyhow::Error::msg)
+        .chain(potlock_indexer)
+        .chain(trade_indexer.map_error(anyhow::Error::msg));
 
     run_indexer(
         &mut indexer,
-        FastNearDataServerProvider::mainnet(),
+        NeardataServerProvider::mainnet(),
         IndexerOptions {
             range: if std::env::args().len() > 1 {
                 // For debugging
