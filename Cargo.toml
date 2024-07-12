@@ -9,9 +9,11 @@ inindexer = { version = "0.2.0", features = [ "neardata-server" ] }
 nft-indexer = { git = "https://github.com/INTEARnear/nft-indexer" }
 potlock-indexer = { git = "https://github.com/INTEARnear/potlock-indexer" }
 trade-indexer = { git = "https://github.com/INTEARnear/trade-indexer" }
+contract-indexer = { git = "https://github.com/INTEARnear/contract-indexer" }
 tokio = { version = "1.37.0", features = ["macros", "rt-multi-thread"] }
 log = "0.4.21"
 simple_logger = "5.0.0"
 redis = { version = "0.25.3", features = [ "tokio-rustls-comp", "connection-manager" ] }
 dotenv = "0.15.0"
 anyhow = "1.0.82"
+near-jsonrpc-client = "0.10.1"
