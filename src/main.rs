@@ -26,12 +26,8 @@ async fn main() {
         log::warn!("Running all-indexers on testnet");
 
         let log_indexer = log_indexer::LogIndexer(
-            log_indexer::redis_handler::PushToRedisStream::new(
-                connection.clone(),
-                100_000,
-                Some("testnet_".to_string()),
-            )
-            .await,
+            log_indexer::redis_handler::PushToRedisStream::new(connection.clone(), 100_000, true)
+                .await,
         );
         let new_token_indexer = new_token_indexer::NewTokenIndexer::new(
             new_token_indexer::redis_handler::PushToRedisStream::new(
@@ -115,7 +111,7 @@ async fn main() {
                 .await,
         );
         let log_indexer = log_indexer::LogIndexer(
-            log_indexer::redis_handler::PushToRedisStream::new(connection.clone(), 100_000, None)
+            log_indexer::redis_handler::PushToRedisStream::new(connection.clone(), 100_000, false)
                 .await,
         );
         let mut indexer = nft_indexer
