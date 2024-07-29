@@ -1,5 +1,3 @@
-use contract_indexer::txt_file_storage::TxtFileStorage;
-use contract_indexer::RPC_URL;
 use inindexer::multiindexer::{ChainIndexers, MapError};
 use inindexer::near_utils::TESTNET_GENESIS_BLOCK_HEIGHT;
 use inindexer::neardata_server::NeardataServerProvider;
@@ -35,7 +33,22 @@ async fn main() {
             )
             .await,
         );
-        let mut indexer = log_indexer.map_error(anyhow::Error::msg);
+        let new_token_indexer = new_token_indexer::NewTokenIndexer::new(
+            new_token_indexer::redis_handler::PushToRedisStream::new(
+                connection.clone(),
+                10_000,
+                true,
+            )
+            .await,
+            JsonRpcClient::connect(
+                std::env::var("RPC_URL").unwrap_or(new_token_indexer::RPC_URL.to_string()),
+            ),
+            new_token_indexer::txt_file_storage::TxtFileStorage::new("testnet_known_tokens.txt")
+                .await,
+        );
+        let mut indexer = log_indexer
+            .map_error(anyhow::Error::msg)
+            .chain(new_token_indexer);
 
         run_indexer(
             &mut indexer,
@@ -85,11 +98,17 @@ async fn main() {
         let trade_indexer = trade_indexer::TradeIndexer(
             trade_indexer::redis_handler::PushToRedisStream::new(connection.clone(), 10_000).await,
         );
-        let contract_indexer = contract_indexer::ContractIndexer::new(
-            contract_indexer::redis_handler::PushToRedisStream::new(connection.clone(), 10_000)
-                .await,
-            JsonRpcClient::connect(std::env::var("RPC_URL").unwrap_or(RPC_URL.to_string())),
-            TxtFileStorage::new("known_tokens.txt").await,
+        let new_token_indexer = new_token_indexer::NewTokenIndexer::new(
+            new_token_indexer::redis_handler::PushToRedisStream::new(
+                connection.clone(),
+                10_000,
+                false,
+            )
+            .await,
+            JsonRpcClient::connect(
+                std::env::var("RPC_URL").unwrap_or(new_token_indexer::RPC_URL.to_string()),
+            ),
+            new_token_indexer::txt_file_storage::TxtFileStorage::new("known_tokens.txt").await,
         );
         let socialdb_indexer = socialdb_indexer::SocialDBIndexer(
             socialdb_indexer::redis_handler::PushToRedisStream::new(connection.clone(), 10_000)
@@ -103,7 +122,7 @@ async fn main() {
             .map_error(anyhow::Error::msg)
             .chain(potlock_indexer)
             .chain(trade_indexer.map_error(anyhow::Error::msg))
-            .chain(contract_indexer)
+            .chain(new_token_indexer)
             .chain(socialdb_indexer.map_error(anyhow::Error::msg))
             .chain(log_indexer.map_error(anyhow::Error::msg));
 

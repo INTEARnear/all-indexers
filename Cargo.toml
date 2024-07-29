@@ -9,7 +9,7 @@ inindexer = { version = "0.2.0", features = [ "neardata-server" ] }
 nft-indexer = { git = "https://github.com/INTEARnear/nft-indexer" }
 potlock-indexer = { git = "https://github.com/INTEARnear/potlock-indexer" }
 trade-indexer = { git = "https://github.com/INTEARnear/trade-indexer" }
-contract-indexer = { git = "https://github.com/INTEARnear/contract-indexer" }
+new-token-indexer = { git = "https://github.com/INTEARnear/new-token-indexer" }
 socialdb-indexer = { git = "https://github.com/INTEARnear/socialdb-indexer" }
 log-indexer = { git = "https://github.com/INTEARnear/log-indexer" }
 tokio = { version = "1.37.0", features = ["macros", "rt-multi-thread"] }
