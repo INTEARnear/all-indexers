@@ -37,7 +37,8 @@ async fn main() {
             )
             .await,
             JsonRpcClient::connect(
-                std::env::var("RPC_URL").unwrap_or(new_token_indexer::RPC_URL.to_string()),
+                std::env::var("RPC_URL")
+                    .unwrap_or("https://archival-rpc.testnet.near.org".to_string()),
             ),
             new_token_indexer::txt_file_storage::TxtFileStorage::new("testnet_known_tokens.txt")
                 .await,
@@ -102,7 +103,8 @@ async fn main() {
             )
             .await,
             JsonRpcClient::connect(
-                std::env::var("RPC_URL").unwrap_or(new_token_indexer::RPC_URL.to_string()),
+                std::env::var("RPC_URL")
+                    .unwrap_or("https://archival-rpc.mainnet.near.org".to_string()),
             ),
             new_token_indexer::txt_file_storage::TxtFileStorage::new("known_tokens.txt").await,
         );
