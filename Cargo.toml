@@ -19,3 +19,4 @@ redis = { version = "0.25.3", features = [ "tokio-rustls-comp", "connection-mana
 dotenv = "0.15.0"
 anyhow = "1.0.82"
 near-jsonrpc-client = "=0.10.1"
+openssl = { version = "0.10", features = ["vendored"] }
