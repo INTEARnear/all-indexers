@@ -43,9 +43,13 @@ async fn main() {
             new_token_indexer::txt_file_storage::TxtFileStorage::new("testnet_known_tokens.txt")
                 .await,
         );
+        let tps_indexer = tps_indexer::TpsIndexer(
+            tps_indexer::redis_handler::PushToRedisStream::new(connection.clone(), 10_000_000, true).await,
+        );
         let mut indexer = log_indexer
             .map_error(anyhow::Error::msg)
-            .chain(new_token_indexer);
+            .chain(new_token_indexer)
+            .chain(tps_indexer.map_error(anyhow::Error::msg));
 
         run_indexer(
             &mut indexer,
@@ -116,13 +120,17 @@ async fn main() {
             log_indexer::redis_handler::PushToRedisStream::new(connection.clone(), 100_000, false)
                 .await,
         );
+        let tps_indexer = tps_indexer::TpsIndexer(
+            tps_indexer::redis_handler::PushToRedisStream::new(connection.clone(), 10_000_000, false).await,
+        );
         let mut indexer = nft_indexer
             .map_error(anyhow::Error::msg)
             .chain(potlock_indexer)
             .chain(trade_indexer.map_error(anyhow::Error::msg))
             .chain(new_token_indexer)
             .chain(socialdb_indexer.map_error(anyhow::Error::msg))
-            .chain(log_indexer.map_error(anyhow::Error::msg));
+            .chain(log_indexer.map_error(anyhow::Error::msg))
+            .chain(tps_indexer.map_error(anyhow::Error::msg));
 
         run_indexer(
             &mut indexer,

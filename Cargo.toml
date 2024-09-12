@@ -12,6 +12,7 @@ trade-indexer = { git = "https://github.com/INTEARnear/trade-indexer" }
 new-token-indexer = { git = "https://github.com/INTEARnear/new-token-indexer" }
 socialdb-indexer = { git = "https://github.com/INTEARnear/socialdb-indexer" }
 log-indexer = { git = "https://github.com/INTEARnear/log-indexer" }
+tps-indexer = { git = "https://github.com/INTEARnear/tps-indexer" }
 tokio = { version = "1.37.0", features = ["macros", "rt-multi-thread"] }
 log = "0.4.21"
 simple_logger = "5.0.0"
