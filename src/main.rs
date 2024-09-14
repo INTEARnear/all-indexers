@@ -44,7 +44,12 @@ async fn main() {
                 .await,
         );
         let tps_indexer = tps_indexer::TpsIndexer(
-            tps_indexer::redis_handler::PushToRedisStream::new(connection.clone(), 10_000_000, true).await,
+            tps_indexer::redis_handler::PushToRedisStream::new(
+                connection.clone(),
+                10_000_000,
+                true,
+            )
+            .await,
         );
         let mut indexer = log_indexer
             .map_error(anyhow::Error::msg)
@@ -121,7 +126,12 @@ async fn main() {
                 .await,
         );
         let tps_indexer = tps_indexer::TpsIndexer(
-            tps_indexer::redis_handler::PushToRedisStream::new(connection.clone(), 10_000_000, false).await,
+            tps_indexer::redis_handler::PushToRedisStream::new(
+                connection.clone(),
+                10_000_000,
+                false,
+            )
+            .await,
         );
         let mut indexer = nft_indexer
             .map_error(anyhow::Error::msg)
