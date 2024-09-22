@@ -25,6 +25,15 @@ async fn main() {
     if std::env::var("TESTNET").is_ok() {
         log::warn!("Running all-indexers on testnet");
 
+        let trade_indexer = trade_indexer::TradeIndexer {
+            handler: trade_indexer::redis_handler::PushToRedisStream::new(
+                connection.clone(),
+                10_000,
+                true,
+            )
+            .await,
+            is_testnet: true,
+        };
         let log_indexer = log_indexer::LogIndexer(
             log_indexer::redis_handler::PushToRedisStream::new(connection.clone(), 100_000, true)
                 .await,
@@ -51,8 +60,9 @@ async fn main() {
             )
             .await,
         );
-        let mut indexer = log_indexer
+        let mut indexer = trade_indexer
             .map_error(anyhow::Error::msg)
+            .chain(log_indexer.map_error(anyhow::Error::msg))
             .chain(new_token_indexer)
             .chain(tps_indexer.map_error(anyhow::Error::msg));
 
@@ -101,9 +111,15 @@ async fn main() {
             potlock_indexer::redis_handler::PushToRedisStream::new(connection.clone(), 10_000)
                 .await,
         );
-        let trade_indexer = trade_indexer::TradeIndexer(
-            trade_indexer::redis_handler::PushToRedisStream::new(connection.clone(), 10_000).await,
-        );
+        let trade_indexer = trade_indexer::TradeIndexer {
+            handler: trade_indexer::redis_handler::PushToRedisStream::new(
+                connection.clone(),
+                10_000,
+                false,
+            )
+            .await,
+            is_testnet: false,
+        };
         let new_token_indexer = new_token_indexer::NewTokenIndexer::new(
             new_token_indexer::redis_handler::PushToRedisStream::new(
                 connection.clone(),
