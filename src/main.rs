@@ -112,6 +112,9 @@ async fn main() {
         let nft_indexer = nft_indexer::NftIndexer(
             nft_indexer::redis_handler::PushToRedisStream::new(connection.clone(), 10_000).await,
         );
+        let ft_indexer = ft_indexer::FtIndexer(
+            ft_indexer::redis_handler::PushToRedisStream::new(connection.clone(), 100_000).await,
+        );
         let potlock_indexer = potlock_indexer::PotlockIndexer(
             potlock_indexer::redis_handler::PushToRedisStream::new(connection.clone(), 10_000)
                 .await,
@@ -160,6 +163,7 @@ async fn main() {
         );
         let mut indexer = nft_indexer
             .map_error(anyhow::Error::msg)
+            .chain(ft_indexer.map_error(anyhow::Error::msg))
             .chain(potlock_indexer)
             .chain(trade_indexer.map_error(anyhow::Error::msg))
             .chain(new_token_indexer)
