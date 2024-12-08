@@ -1,6 +1,6 @@
 use inindexer::multiindexer::{ChainIndexers, MapError};
 use inindexer::near_utils::TESTNET_GENESIS_BLOCK_HEIGHT;
-use inindexer::neardata_server::NeardataServerProvider;
+use inindexer::neardata::NeardataProvider;
 use inindexer::{
     run_indexer, AutoContinue, BlockIterator, IndexerOptions, PreprocessTransactionsSettings,
 };
@@ -51,6 +51,10 @@ async fn main() {
             ),
             new_token_indexer::txt_file_storage::TxtFileStorage::new("testnet_known_tokens.txt")
                 .await,
+            new_token_indexer::txt_file_storage::TxtFileStorage::new(
+                "testnet_known_nft_tokens.txt",
+            )
+            .await,
         );
         let tps_indexer = tps_indexer::TpsIndexer(
             tps_indexer::redis_handler::PushToRedisStream::new(
@@ -73,7 +77,7 @@ async fn main() {
 
         run_indexer(
             &mut indexer,
-            NeardataServerProvider::testnet(),
+            NeardataProvider::testnet(),
             IndexerOptions {
                 range: if std::env::args().len() > 1 {
                     // For debugging
@@ -140,6 +144,7 @@ async fn main() {
                     .unwrap_or("https://archival-rpc.mainnet.near.org".to_string()),
             ),
             new_token_indexer::txt_file_storage::TxtFileStorage::new("known_tokens.txt").await,
+            new_token_indexer::txt_file_storage::TxtFileStorage::new("known_nft_tokens.txt").await,
         );
         let socialdb_indexer = socialdb_indexer::SocialDBIndexer(
             socialdb_indexer::redis_handler::PushToRedisStream::new(connection.clone(), 10_000)
@@ -174,7 +179,7 @@ async fn main() {
 
         run_indexer(
             &mut indexer,
-            NeardataServerProvider::mainnet(),
+            NeardataProvider::mainnet(),
             IndexerOptions {
                 range: if std::env::args().len() > 1 {
                     // For debugging

@@ -5,7 +5,7 @@ edition = "2021"
 license = "MIT OR Apache-2.0"
 
 [dependencies]
-inindexer = { version = "0.2.0", features = [ "neardata-server" ] }
+inindexer = { version = "1.1.1", features = [ "neardata" ] }
 nft-indexer = { git = "https://github.com/INTEARnear/nft-indexer" }
 ft-indexer = { git = "https://github.com/INTEARnear/ft-indexer" }
 potlock-indexer = { git = "https://github.com/INTEARnear/potlock-indexer" }
