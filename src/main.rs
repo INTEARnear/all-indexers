@@ -1,4 +1,4 @@
-use inindexer::multiindexer::{ChainIndexers, MapError};
+use inindexer::multiindexer::{MapError, ParallelJoinIndexers};
 use inindexer::near_utils::TESTNET_GENESIS_BLOCK_HEIGHT;
 use inindexer::neardata::NeardataProvider;
 use inindexer::{
@@ -70,10 +70,10 @@ async fn main() {
         );
         let mut indexer = trade_indexer
             .map_error(anyhow::Error::msg)
-            .chain(log_indexer.map_error(anyhow::Error::msg))
-            .chain(new_token_indexer)
-            .chain(tps_indexer.map_error(anyhow::Error::msg))
-            .chain(tx_indexer.map_error(anyhow::Error::msg));
+            .parallel_join(log_indexer.map_error(anyhow::Error::msg))
+            .parallel_join(new_token_indexer)
+            .parallel_join(tps_indexer.map_error(anyhow::Error::msg))
+            .parallel_join(tx_indexer.map_error(anyhow::Error::msg));
 
         run_indexer(
             &mut indexer,
@@ -168,14 +168,14 @@ async fn main() {
         );
         let mut indexer = nft_indexer
             .map_error(anyhow::Error::msg)
-            .chain(ft_indexer.map_error(anyhow::Error::msg))
-            .chain(potlock_indexer)
-            .chain(trade_indexer.map_error(anyhow::Error::msg))
-            .chain(new_token_indexer)
-            .chain(socialdb_indexer.map_error(anyhow::Error::msg))
-            .chain(log_indexer.map_error(anyhow::Error::msg))
-            .chain(tps_indexer.map_error(anyhow::Error::msg))
-            .chain(tx_indexer.map_error(anyhow::Error::msg));
+            .parallel_join(ft_indexer.map_error(anyhow::Error::msg))
+            .parallel_join(potlock_indexer)
+            .parallel_join(trade_indexer.map_error(anyhow::Error::msg))
+            .parallel_join(new_token_indexer)
+            .parallel_join(socialdb_indexer.map_error(anyhow::Error::msg))
+            .parallel_join(log_indexer.map_error(anyhow::Error::msg))
+            .parallel_join(tps_indexer.map_error(anyhow::Error::msg))
+            .parallel_join(tx_indexer.map_error(anyhow::Error::msg));
 
         run_indexer(
             &mut indexer,
