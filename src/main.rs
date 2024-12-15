@@ -1,11 +1,19 @@
+use inindexer::message_provider::{ParallelProviderStreamer, ProviderStreamer};
 use inindexer::multiindexer::{MapError, ParallelJoinIndexers};
+use inindexer::near_indexer_primitives::types::BlockHeight;
+use inindexer::near_indexer_primitives::StreamerMessage;
 use inindexer::near_utils::TESTNET_GENESIS_BLOCK_HEIGHT;
 use inindexer::neardata::NeardataProvider;
 use inindexer::{
-    run_indexer, AutoContinue, BlockIterator, IndexerOptions, PreprocessTransactionsSettings,
+    run_indexer, AutoContinue, BlockIterator, IndexerOptions, MessageStreamer,
+    PreprocessTransactionsSettings,
 };
 use near_jsonrpc_client::JsonRpcClient;
 use redis::aio::ConnectionManager;
+use tokio::sync::mpsc;
+use tokio::task::JoinHandle;
+
+const MAX_BLOCKS_IN_REDIS: usize = 60 * 60 * 2; // up to 2 hours worth of data can be effortlessly recovered
 
 #[tokio::main]
 async fn main() {
@@ -28,20 +36,24 @@ async fn main() {
         let trade_indexer = trade_indexer::TradeIndexer {
             handler: trade_indexer::redis_handler::PushToRedisStream::new(
                 connection.clone(),
-                10_000,
+                MAX_BLOCKS_IN_REDIS,
                 true,
             )
             .await,
             is_testnet: true,
         };
         let log_indexer = log_indexer::LogIndexer(
-            log_indexer::redis_handler::PushToRedisStream::new(connection.clone(), 100_000, true)
-                .await,
+            log_indexer::redis_handler::PushToRedisStream::new(
+                connection.clone(),
+                MAX_BLOCKS_IN_REDIS,
+                true,
+            )
+            .await,
         );
         let new_token_indexer = new_token_indexer::NewTokenIndexer::new(
             new_token_indexer::redis_handler::PushToRedisStream::new(
                 connection.clone(),
-                10_000,
+                MAX_BLOCKS_IN_REDIS,
                 true,
             )
             .await,
@@ -59,14 +71,18 @@ async fn main() {
         let tps_indexer = tps_indexer::TpsIndexer(
             tps_indexer::redis_handler::PushToRedisStream::new(
                 connection.clone(),
-                10_000_000,
+                MAX_BLOCKS_IN_REDIS,
                 true,
             )
             .await,
         );
         let tx_indexer = tx_indexer::TxIndexer(
-            tx_indexer::redis_handler::PushToRedisStream::new(connection.clone(), 1_000_000, true)
-                .await,
+            tx_indexer::redis_handler::PushToRedisStream::new(
+                connection.clone(),
+                MAX_BLOCKS_IN_REDIS,
+                true,
+            )
+            .await,
         );
         let mut indexer = trade_indexer
             .map_error(anyhow::Error::msg)
@@ -114,19 +130,30 @@ async fn main() {
         .expect("Indexer run failed");
     } else {
         let nft_indexer = nft_indexer::NftIndexer(
-            nft_indexer::redis_handler::PushToRedisStream::new(connection.clone(), 10_000).await,
+            nft_indexer::redis_handler::PushToRedisStream::new(
+                connection.clone(),
+                MAX_BLOCKS_IN_REDIS,
+            )
+            .await,
         );
         let ft_indexer = ft_indexer::FtIndexer(
-            ft_indexer::redis_handler::PushToRedisStream::new(connection.clone(), 100_000).await,
+            ft_indexer::redis_handler::PushToRedisStream::new(
+                connection.clone(),
+                MAX_BLOCKS_IN_REDIS,
+            )
+            .await,
         );
         let potlock_indexer = potlock_indexer::PotlockIndexer(
-            potlock_indexer::redis_handler::PushToRedisStream::new(connection.clone(), 10_000)
-                .await,
+            potlock_indexer::redis_handler::PushToRedisStream::new(
+                connection.clone(),
+                MAX_BLOCKS_IN_REDIS,
+            )
+            .await,
         );
         let trade_indexer = trade_indexer::TradeIndexer {
             handler: trade_indexer::redis_handler::PushToRedisStream::new(
                 connection.clone(),
-                10_000,
+                MAX_BLOCKS_IN_REDIS,
                 false,
             )
             .await,
@@ -135,7 +162,7 @@ async fn main() {
         let new_token_indexer = new_token_indexer::NewTokenIndexer::new(
             new_token_indexer::redis_handler::PushToRedisStream::new(
                 connection.clone(),
-                10_000,
+                MAX_BLOCKS_IN_REDIS,
                 false,
             )
             .await,
@@ -147,24 +174,35 @@ async fn main() {
             new_token_indexer::txt_file_storage::TxtFileStorage::new("known_nft_tokens.txt").await,
         );
         let socialdb_indexer = socialdb_indexer::SocialDBIndexer(
-            socialdb_indexer::redis_handler::PushToRedisStream::new(connection.clone(), 10_000)
-                .await,
+            socialdb_indexer::redis_handler::PushToRedisStream::new(
+                connection.clone(),
+                MAX_BLOCKS_IN_REDIS,
+            )
+            .await,
         );
         let log_indexer = log_indexer::LogIndexer(
-            log_indexer::redis_handler::PushToRedisStream::new(connection.clone(), 100_000, false)
-                .await,
+            log_indexer::redis_handler::PushToRedisStream::new(
+                connection.clone(),
+                MAX_BLOCKS_IN_REDIS,
+                false,
+            )
+            .await,
         );
         let tps_indexer = tps_indexer::TpsIndexer(
             tps_indexer::redis_handler::PushToRedisStream::new(
                 connection.clone(),
-                10_000_000,
+                MAX_BLOCKS_IN_REDIS,
                 false,
             )
             .await,
         );
         let tx_indexer = tx_indexer::TxIndexer(
-            tx_indexer::redis_handler::PushToRedisStream::new(connection.clone(), 1_000_000, false)
-                .await,
+            tx_indexer::redis_handler::PushToRedisStream::new(
+                connection.clone(),
+                MAX_BLOCKS_IN_REDIS,
+                false,
+            )
+            .await,
         );
         let mut indexer = nft_indexer
             .map_error(anyhow::Error::msg)
@@ -177,9 +215,18 @@ async fn main() {
             .parallel_join(tps_indexer.map_error(anyhow::Error::msg))
             .parallel_join(tx_indexer.map_error(anyhow::Error::msg));
 
+        let provider: EitherStreamer = if std::env::var("PARALLEL").is_ok() {
+            EitherStreamer::Parallel(ParallelProviderStreamer::new(
+                NeardataProvider::mainnet(),
+                10,
+            ))
+        } else {
+            EitherStreamer::Single(ProviderStreamer::new(NeardataProvider::mainnet()))
+        };
+
         run_indexer(
             &mut indexer,
-            NeardataProvider::mainnet(),
+            provider,
             IndexerOptions {
                 range: if std::env::args().len() > 1 {
                     // For debugging
@@ -210,5 +257,31 @@ async fn main() {
         )
         .await
         .expect("Indexer run failed");
+    }
+}
+
+enum EitherStreamer {
+    Parallel(ParallelProviderStreamer<NeardataProvider>),
+    Single(ProviderStreamer<NeardataProvider>),
+}
+
+#[async_trait::async_trait]
+impl MessageStreamer for EitherStreamer {
+    type Error = <NeardataProvider as MessageStreamer>::Error;
+
+    async fn stream(
+        self,
+        range: impl Iterator<Item = BlockHeight> + Send + 'static,
+    ) -> Result<
+        (
+            JoinHandle<Result<(), Self::Error>>,
+            mpsc::Receiver<StreamerMessage>,
+        ),
+        Self::Error,
+    > {
+        match self {
+            EitherStreamer::Parallel(provider) => provider.stream(range).await,
+            EitherStreamer::Single(provider) => provider.stream(range).await,
+        }
     }
 }
