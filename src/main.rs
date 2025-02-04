@@ -37,16 +37,28 @@ async fn main() {
             handler: trade_indexer::redis_handler::PushToRedisStream::new(
                 connection.clone(),
                 MAX_BLOCKS_IN_REDIS,
-                true,
             )
             .await,
             is_testnet: true,
         };
+        let ft_indexer = ft_indexer::FtIndexer(
+            ft_indexer::redis_handler::PushToRedisStream::new(
+                connection.clone(),
+                MAX_BLOCKS_IN_REDIS,
+            )
+            .await,
+        );
+        let nft_indexer = nft_indexer::NftIndexer(
+            nft_indexer::redis_handler::PushToRedisStream::new(
+                connection.clone(),
+                MAX_BLOCKS_IN_REDIS,
+            )
+            .await,
+        );
         let log_indexer = log_indexer::LogIndexer(
             log_indexer::redis_handler::PushToRedisStream::new(
                 connection.clone(),
                 MAX_BLOCKS_IN_REDIS,
-                true,
             )
             .await,
         );
@@ -54,7 +66,6 @@ async fn main() {
             new_token_indexer::redis_handler::PushToRedisStream::new(
                 connection.clone(),
                 MAX_BLOCKS_IN_REDIS,
-                true,
             )
             .await,
             JsonRpcClient::connect(
@@ -68,11 +79,10 @@ async fn main() {
             )
             .await,
         );
-        let tps_indexer = tps_indexer::TpsIndexer(
-            tps_indexer::redis_handler::PushToRedisStream::new(
+        let block_indexer = block_indexer::BlockIndexer(
+            block_indexer::redis_handler::PushToRedisStream::new(
                 connection.clone(),
                 MAX_BLOCKS_IN_REDIS,
-                true,
             )
             .await,
         );
@@ -80,16 +90,17 @@ async fn main() {
             tx_indexer::redis_handler::PushToRedisStream::new(
                 connection.clone(),
                 MAX_BLOCKS_IN_REDIS,
-                true,
             )
             .await,
         );
         let mut indexer = trade_indexer
+            .parallel_join(ft_indexer)
+            .parallel_join(nft_indexer)
+            .parallel_join(log_indexer)
+            .parallel_join(block_indexer)
+            .parallel_join(tx_indexer)
             .map_error(anyhow::Error::msg)
-            .parallel_join(log_indexer.map_error(anyhow::Error::msg))
-            .parallel_join(new_token_indexer)
-            .parallel_join(tps_indexer.map_error(anyhow::Error::msg))
-            .parallel_join(tx_indexer.map_error(anyhow::Error::msg));
+            .parallel_join(new_token_indexer);
 
         run_indexer(
             &mut indexer,
@@ -154,7 +165,6 @@ async fn main() {
             handler: trade_indexer::redis_handler::PushToRedisStream::new(
                 connection.clone(),
                 MAX_BLOCKS_IN_REDIS,
-                false,
             )
             .await,
             is_testnet: false,
@@ -163,7 +173,6 @@ async fn main() {
             new_token_indexer::redis_handler::PushToRedisStream::new(
                 connection.clone(),
                 MAX_BLOCKS_IN_REDIS,
-                false,
             )
             .await,
             JsonRpcClient::connect(
@@ -184,15 +193,13 @@ async fn main() {
             log_indexer::redis_handler::PushToRedisStream::new(
                 connection.clone(),
                 MAX_BLOCKS_IN_REDIS,
-                false,
             )
             .await,
         );
-        let tps_indexer = tps_indexer::TpsIndexer(
-            tps_indexer::redis_handler::PushToRedisStream::new(
+        let block_indexer = block_indexer::BlockIndexer(
+            block_indexer::redis_handler::PushToRedisStream::new(
                 connection.clone(),
                 MAX_BLOCKS_IN_REDIS,
-                false,
             )
             .await,
         );
@@ -200,20 +207,19 @@ async fn main() {
             tx_indexer::redis_handler::PushToRedisStream::new(
                 connection.clone(),
                 MAX_BLOCKS_IN_REDIS,
-                false,
             )
             .await,
         );
         let mut indexer = nft_indexer
+            .parallel_join(ft_indexer)
+            .parallel_join(trade_indexer)
+            .parallel_join(socialdb_indexer)
+            .parallel_join(log_indexer)
+            .parallel_join(block_indexer)
+            .parallel_join(tx_indexer)
             .map_error(anyhow::Error::msg)
-            .parallel_join(ft_indexer.map_error(anyhow::Error::msg))
             .parallel_join(potlock_indexer)
-            .parallel_join(trade_indexer.map_error(anyhow::Error::msg))
-            .parallel_join(new_token_indexer)
-            .parallel_join(socialdb_indexer.map_error(anyhow::Error::msg))
-            .parallel_join(log_indexer.map_error(anyhow::Error::msg))
-            .parallel_join(tps_indexer.map_error(anyhow::Error::msg))
-            .parallel_join(tx_indexer.map_error(anyhow::Error::msg));
+            .parallel_join(new_token_indexer);
 
         let provider: EitherStreamer = if std::env::var("PARALLEL").is_ok() {
             EitherStreamer::Parallel(ParallelProviderStreamer::new(
