@@ -1,9 +1,10 @@
-use inindexer::message_provider::{ParallelProviderStreamer, ProviderStreamer};
+use inindexer::message_provider::ParallelProviderStreamer;
 use inindexer::multiindexer::{MapError, ParallelJoinIndexers};
 use inindexer::near_indexer_primitives::types::BlockHeight;
 use inindexer::near_indexer_primitives::StreamerMessage;
 use inindexer::near_utils::TESTNET_GENESIS_BLOCK_HEIGHT;
 use inindexer::neardata::NeardataProvider;
+use inindexer::neardata_old::OldNeardataProvider;
 use inindexer::{
     run_indexer, AutoContinue, BlockIterator, IndexerOptions, MessageStreamer,
     PreprocessTransactionsSettings,
@@ -223,11 +224,11 @@ async fn main() {
 
         let provider: EitherStreamer = if std::env::var("PARALLEL").is_ok() {
             EitherStreamer::Parallel(ParallelProviderStreamer::new(
-                NeardataProvider::mainnet(),
+                OldNeardataProvider::mainnet(),
                 10,
             ))
         } else {
-            EitherStreamer::Single(ProviderStreamer::new(NeardataProvider::mainnet()))
+            EitherStreamer::Single(NeardataProvider::mainnet())
         };
 
         run_indexer(
@@ -267,13 +268,13 @@ async fn main() {
 }
 
 enum EitherStreamer {
-    Parallel(ParallelProviderStreamer<NeardataProvider>),
-    Single(ProviderStreamer<NeardataProvider>),
+    Parallel(ParallelProviderStreamer<OldNeardataProvider>),
+    Single(NeardataProvider),
 }
 
 #[async_trait::async_trait]
 impl MessageStreamer for EitherStreamer {
-    type Error = <NeardataProvider as MessageStreamer>::Error;
+    type Error = String;
 
     async fn stream(
         self,
@@ -286,8 +287,30 @@ impl MessageStreamer for EitherStreamer {
         Self::Error,
     > {
         match self {
-            EitherStreamer::Parallel(provider) => provider.stream(range).await,
-            EitherStreamer::Single(provider) => provider.stream(range).await,
+            EitherStreamer::Parallel(provider) => {
+                let res = provider.stream(range).await;
+                match res {
+                    Ok((join_handle, receiver)) => Ok((
+                        tokio::spawn(async move {
+                            join_handle.await.unwrap().map_err(|e| format!("{e:?}"))
+                        }),
+                        receiver,
+                    )),
+                    Err(e) => Err(format!("{e:?}")),
+                }
+            }
+            EitherStreamer::Single(provider) => {
+                let res = provider.stream(range).await;
+                match res {
+                    Ok((join_handle, receiver)) => Ok((
+                        tokio::spawn(async move {
+                            join_handle.await.unwrap().map_err(|e| format!("{e:?}"))
+                        }),
+                        receiver,
+                    )),
+                    Err(e) => Err(format!("{e:?}")),
+                }
+            }
         }
     }
 }
