@@ -6,7 +6,7 @@ use inindexer::near_utils::TESTNET_GENESIS_BLOCK_HEIGHT;
 use inindexer::neardata::NeardataProvider;
 use inindexer::neardata_old::OldNeardataProvider;
 use inindexer::{
-    run_indexer, AutoContinue, BlockIterator, IndexerOptions, MessageStreamer,
+    run_indexer, AutoContinue, BlockRange, IndexerOptions, MessageStreamer,
     PreprocessTransactionsSettings,
 };
 use near_jsonrpc_client::JsonRpcClient;
@@ -107,35 +107,36 @@ async fn main() {
             &mut indexer,
             NeardataProvider::testnet(),
             IndexerOptions {
-                range: if std::env::args().len() > 1 {
+                preprocess_transactions: Some(PreprocessTransactionsSettings {
+                    prefetch_blocks: if cfg!(debug_assertions) { 0 } else { 100 },
+                    postfetch_blocks: if cfg!(debug_assertions) { 0 } else { 100 },
+                }),
+                ..IndexerOptions::default_with_range(if std::env::args().len() > 1 {
                     // For debugging
                     let msg = "Usage: `all-indexers` or `all-indexers [start-block] [end-block]`";
-                    BlockIterator::iterator(
-                        std::env::args()
+                    BlockRange::Range {
+                        start_inclusive: std::env::args()
                             .nth(1)
                             .expect(msg)
                             .replace(['_', ',', ' ', '.'], "")
                             .parse()
-                            .expect(msg)
-                            ..=std::env::args()
+                            .expect(msg),
+                        end_exclusive: Some(
+                            std::env::args()
                                 .nth(2)
                                 .expect(msg)
                                 .replace(['_', ',', ' ', '.'], "")
                                 .parse()
                                 .expect(msg),
-                    )
+                        ),
+                    }
                 } else {
-                    BlockIterator::AutoContinue(AutoContinue {
+                    BlockRange::AutoContinue(AutoContinue {
                         save_location: Box::new("last-processed-block-testnet.txt"),
                         start_height_if_does_not_exist: TESTNET_GENESIS_BLOCK_HEIGHT,
                         ..Default::default()
                     })
-                },
-                preprocess_transactions: Some(PreprocessTransactionsSettings {
-                    prefetch_blocks: if cfg!(debug_assertions) { 0 } else { 100 },
-                    postfetch_blocks: if cfg!(debug_assertions) { 0 } else { 100 },
-                }),
-                ..Default::default()
+                })
             },
         )
         .await
@@ -235,31 +236,32 @@ async fn main() {
             &mut indexer,
             provider,
             IndexerOptions {
-                range: if std::env::args().len() > 1 {
+                preprocess_transactions: Some(PreprocessTransactionsSettings {
+                    prefetch_blocks: if cfg!(debug_assertions) { 0 } else { 100 },
+                    postfetch_blocks: if cfg!(debug_assertions) { 0 } else { 100 },
+                }),
+                ..IndexerOptions::default_with_range(if std::env::args().len() > 1 {
                     // For debugging
                     let msg = "Usage: `all-indexers` or `all-indexers [start-block] [end-block]`";
-                    BlockIterator::iterator(
-                        std::env::args()
+                    BlockRange::Range {
+                        start_inclusive: std::env::args()
                             .nth(1)
                             .expect(msg)
                             .replace(['_', ',', ' ', '.'], "")
                             .parse()
-                            .expect(msg)
-                            ..=std::env::args()
+                            .expect(msg),
+                        end_exclusive: Some(
+                            std::env::args()
                                 .nth(2)
                                 .expect(msg)
                                 .replace(['_', ',', ' ', '.'], "")
                                 .parse()
                                 .expect(msg),
-                    )
+                        ),
+                    }
                 } else {
-                    BlockIterator::AutoContinue(AutoContinue::default())
-                },
-                preprocess_transactions: Some(PreprocessTransactionsSettings {
-                    prefetch_blocks: if cfg!(debug_assertions) { 0 } else { 100 },
-                    postfetch_blocks: if cfg!(debug_assertions) { 0 } else { 100 },
-                }),
-                ..Default::default()
+                    BlockRange::AutoContinue(AutoContinue::default())
+                })
             },
         )
         .await
@@ -278,7 +280,8 @@ impl MessageStreamer for EitherStreamer {
 
     async fn stream(
         self,
-        range: impl Iterator<Item = BlockHeight> + Send + 'static,
+        start_block: BlockHeight,
+        end_block: Option<BlockHeight>,
     ) -> Result<
         (
             JoinHandle<Result<(), Self::Error>>,
@@ -288,7 +291,7 @@ impl MessageStreamer for EitherStreamer {
     > {
         match self {
             EitherStreamer::Parallel(provider) => {
-                let res = provider.stream(range).await;
+                let res = provider.stream(start_block, end_block).await;
                 match res {
                     Ok((join_handle, receiver)) => Ok((
                         tokio::spawn(async move {
@@ -300,7 +303,7 @@ impl MessageStreamer for EitherStreamer {
                 }
             }
             EitherStreamer::Single(provider) => {
-                let res = provider.stream(range).await;
+                let res = provider.stream(start_block, end_block).await;
                 match res {
                     Ok((join_handle, receiver)) => Ok((
                         tokio::spawn(async move {
