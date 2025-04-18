@@ -9,7 +9,7 @@ use inindexer::{
     run_indexer, AutoContinue, BlockRange, IndexerOptions, MessageStreamer,
     PreprocessTransactionsSettings,
 };
-use near_jsonrpc_client::JsonRpcClient;
+use near_min_api::RpcClient;
 use redis::aio::ConnectionManager;
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
@@ -69,9 +69,10 @@ async fn main() {
                 MAX_BLOCKS_IN_REDIS,
             )
             .await,
-            JsonRpcClient::connect(
+            RpcClient::new(
                 std::env::var("RPC_URL")
-                    .unwrap_or("https://archival-rpc.testnet.near.org".to_string()),
+                    .map(|s| s.split(',').map(|s| s.to_string()).collect())
+                    .unwrap_or(vec!["https://archival-rpc.testnet.near.org".to_string()]),
             ),
             new_token_indexer::txt_file_storage::TxtFileStorage::new("testnet_known_tokens.txt")
                 .await,
@@ -177,9 +178,10 @@ async fn main() {
                 MAX_BLOCKS_IN_REDIS,
             )
             .await,
-            JsonRpcClient::connect(
+            RpcClient::new(
                 std::env::var("RPC_URL")
-                    .unwrap_or("https://archival-rpc.mainnet.near.org".to_string()),
+                    .map(|s| s.split(',').map(|s| s.to_string()).collect())
+                    .unwrap_or(vec!["https://archival-rpc.mainnet.near.org".to_string()]),
             ),
             new_token_indexer::txt_file_storage::TxtFileStorage::new("known_tokens.txt").await,
             new_token_indexer::txt_file_storage::TxtFileStorage::new("known_nft_tokens.txt").await,

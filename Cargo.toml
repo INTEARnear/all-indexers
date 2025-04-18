@@ -24,3 +24,4 @@ anyhow = "1.0.82"
 near-jsonrpc-client = "0.16.1"
 openssl = { version = "0.10", features = ["vendored"] }
 async-trait = "0.1"
+near-min-api = { git = "https://github.com/INTEARnear/wallet" }
