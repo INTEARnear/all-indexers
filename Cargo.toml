@@ -5,23 +5,22 @@ edition = "2021"
 license = "MIT OR Apache-2.0"
 
 [dependencies]
-inindexer = "3.0.0"
-nft-indexer = { git = "https://github.com/INTEARnear/nft-indexer" }
-ft-indexer = { git = "https://github.com/INTEARnear/ft-indexer" }
-potlock-indexer = { git = "https://github.com/INTEARnear/potlock-indexer" }
-trade-indexer = { git = "https://github.com/INTEARnear/trade-indexer" }
-new-token-indexer = { git = "https://github.com/INTEARnear/new-token-indexer" }
-socialdb-indexer = { git = "https://github.com/INTEARnear/socialdb-indexer" }
-log-indexer = { git = "https://github.com/INTEARnear/log-indexer" }
-block-indexer = { git = "https://github.com/INTEARnear/block-indexer" }
-tx-indexer = { git = "https://github.com/INTEARnear/tx-indexer" }
+inindexer = "4.0.0-rc.1"
+nft-indexer = { git = "https://github.com/INTEARnear/nft-indexer", branch = "testnet" }
+ft-indexer = { git = "https://github.com/INTEARnear/ft-indexer", branch = "testnet" }
+potlock-indexer = { git = "https://github.com/INTEARnear/potlock-indexer", branch = "testnet" }
+trade-indexer = { git = "https://github.com/INTEARnear/trade-indexer", branch = "testnet" }
+new-token-indexer = { git = "https://github.com/INTEARnear/new-token-indexer", branch = "testnet" }
+socialdb-indexer = { git = "https://github.com/INTEARnear/socialdb-indexer", branch = "testnet" }
+log-indexer = { git = "https://github.com/INTEARnear/log-indexer", branch = "testnet" }
+block-indexer = { git = "https://github.com/INTEARnear/block-indexer", branch = "testnet" }
+tx-indexer = { git = "https://github.com/INTEARnear/tx-indexer", branch = "testnet" }
 tokio = { version = "1.37.0", features = ["macros", "rt-multi-thread"] }
 log = "0.4.21"
 simple_logger = "5.0.0"
-redis = { version = "0.25.3", features = [ "tokio-rustls-comp", "connection-manager" ] }
+redis = { version = "0.25.3", features = ["tokio-rustls-comp", "connection-manager"] }
 dotenv = "0.15.0"
 anyhow = "1.0.82"
-near-jsonrpc-client = "0.16.1"
 openssl = { version = "0.10", features = ["vendored"] }
 async-trait = "0.1"
 near-min-api = { git = "https://github.com/INTEARnear/wallet" }
