@@ -1,20 +1,24 @@
+use std::convert::Infallible;
+use std::time::Duration;
+
 use inindexer::message_provider::ParallelProviderStreamer;
-use inindexer::multiindexer::{MapError, ParallelJoinIndexers};
+use inindexer::multiindexer::{ChainIndexers, MapError, ParallelJoinIndexers};
 use inindexer::near_indexer_primitives::types::BlockHeight;
 use inindexer::near_indexer_primitives::StreamerMessage;
 use inindexer::near_utils::TESTNET_GENESIS_BLOCK_HEIGHT;
 use inindexer::neardata::NeardataProvider;
 use inindexer::neardata_old::OldNeardataProvider;
 use inindexer::{
-    run_indexer, AutoContinue, BlockRange, IndexerOptions, MessageStreamer,
+    run_indexer, AutoContinue, BlockRange, Indexer, IndexerOptions, MessageStreamer,
     PreprocessTransactionsSettings,
 };
 use near_min_api::RpcClient;
 use redis::aio::ConnectionManager;
+use reqwest::header::{HeaderMap, AUTHORIZATION};
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 
-const MAX_BLOCKS_IN_REDIS: usize = 60 * 60 * 2; // up to 2 hours worth of data can be effortlessly recovered
+const MAX_BLOCKS_IN_REDIS: usize = 60 * 60 * 2; // means that up to 2 hours worth of data can be effortlessly recovered
 
 #[tokio::main]
 async fn main() {
@@ -22,6 +26,7 @@ async fn main() {
     simple_logger::SimpleLogger::new()
         .with_level(log::LevelFilter::Info)
         .with_module_level("inindexer::performance", log::LevelFilter::Debug)
+        .env()
         .init()
         .unwrap();
 
@@ -31,6 +36,29 @@ async fn main() {
     .unwrap();
     let connection = ConnectionManager::new(client).await.unwrap();
 
+    let mut reqwest_client_builder = reqwest::Client::builder();
+    if let Ok(api_key) = std::env::var("FASTNEAR_API_KEY") {
+        reqwest_client_builder = reqwest_client_builder.default_headers(HeaderMap::from_iter([(
+            AUTHORIZATION,
+            format!("Bearer {api_key}").parse().unwrap(),
+        )]));
+    }
+    if let Ok(user_agent) = std::env::var("USER_AGENT") {
+        reqwest_client_builder = reqwest_client_builder.user_agent(user_agent);
+    }
+    let reqwest_client = reqwest_client_builder.build().unwrap();
+
+    // Needed so that redis consumers can keep up with the stream. Especially useful for backfilling.
+    let wait_indexer =
+        if let Ok(wait_secs) = std::env::var("WAIT_SECS").map(|s| s.parse::<f64>().unwrap()) {
+            WaitIndexer {
+                wait: Duration::from_secs_f64(wait_secs),
+            }
+        } else {
+            WaitIndexer {
+                wait: Duration::from_millis(50),
+            }
+        };
     if std::env::var("TESTNET").is_ok() {
         log::warn!("Running all-indexers on testnet");
 
@@ -102,11 +130,17 @@ async fn main() {
             .parallel_join(block_indexer)
             .parallel_join(tx_indexer)
             .map_error(anyhow::Error::msg)
-            .parallel_join(new_token_indexer);
+            .parallel_join(new_token_indexer)
+            .chain(wait_indexer.map_error(Into::into));
 
+        let neardata_provider = if let Ok(api_key) = std::env::var("FASTNEAR_API_KEY") {
+            NeardataProvider::testnet().with_auth_bearer_token(api_key)
+        } else {
+            NeardataProvider::testnet()
+        };
         run_indexer(
             &mut indexer,
-            NeardataProvider::testnet(),
+            EitherStreamer::Single(neardata_provider),
             IndexerOptions {
                 preprocess_transactions: Some(PreprocessTransactionsSettings {
                     prefetch_blocks: if cfg!(debug_assertions) { 0 } else { 100 },
@@ -223,15 +257,24 @@ async fn main() {
             .parallel_join(tx_indexer)
             .map_error(anyhow::Error::msg)
             .parallel_join(potlock_indexer)
-            .parallel_join(new_token_indexer);
+            .parallel_join(new_token_indexer)
+            .chain(wait_indexer.map_error(Into::into));
 
         let provider: EitherStreamer = if std::env::var("PARALLEL").is_ok() {
             EitherStreamer::Parallel(ParallelProviderStreamer::new(
-                OldNeardataProvider::mainnet(),
+                OldNeardataProvider::with_base_url_and_client(
+                    "https://mainnet.neardata.xyz".to_string(),
+                    reqwest_client,
+                ),
                 10,
             ))
         } else {
-            EitherStreamer::Single(NeardataProvider::mainnet())
+            let neardata_provider = if let Ok(api_key) = std::env::var("FASTNEAR_API_KEY") {
+                NeardataProvider::mainnet().with_auth_bearer_token(api_key)
+            } else {
+                NeardataProvider::mainnet()
+            };
+            EitherStreamer::Single(neardata_provider)
         };
 
         run_indexer(
@@ -317,5 +360,19 @@ impl MessageStreamer for EitherStreamer {
                 }
             }
         }
+    }
+}
+
+struct WaitIndexer {
+    wait: Duration,
+}
+
+#[async_trait::async_trait]
+impl Indexer for WaitIndexer {
+    type Error = Infallible;
+
+    async fn process_block(&mut self, _block: &StreamerMessage) -> Result<(), Self::Error> {
+        tokio::time::sleep(self.wait).await;
+        Ok(())
     }
 }
